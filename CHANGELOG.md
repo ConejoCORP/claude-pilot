@@ -3,6 +3,12 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.5
+
+- **« Démarrer un retour » en haut à gauche**, au-dessus de la liste de tes retours : le nouveau retour vient
+  s'y ajouter. Pendant l'enregistrement, ce bouton devient « Terminer le retour », et le bandeau avec Capturer,
+  Pause et le chrono n'apparaît qu'à ce moment-là : plus de place pour lire tes retours le reste du temps.
+
 ## 1.0.4
 
 - **Plus de cercle rouge autour de la souris** sur les captures : l'IA pouvait le prendre pour un élément de

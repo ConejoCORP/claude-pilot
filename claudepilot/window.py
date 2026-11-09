@@ -81,7 +81,8 @@ WELCOME = """
 <h2 style="color:#f4f4f5;">Prêt pour un retour vocal</h2>
 <p style="color:#a1a1aa;">Montre ton écran en parlant, comme en partage d'écran : Claude Code reçoit ta voix transcrite
 et chaque capture à l'instant exact où tu l'as prise.</p>
-<p><b>1.</b> Clique sur <b>Démarrer un retour</b>, ou appuie sur <b>{record}</b>, même depuis une autre appli.</p>
+<p><b>1.</b> Clique sur <b>Démarrer un retour</b>, en haut à gauche, ou appuie sur <b>{record}</b>, même depuis une
+autre appli.</p>
 <p><b>2.</b> Parle normalement. Pour capturer l'écran où est ta souris : <b>{capture}</b>, le bouton <b>Capturer</b>,
 ou dis « capture », « regarde », « tu vois », « là » ou « ici ».</p>
 <p><b>3.</b> Termine avec <b>{record}</b> : le message pour Claude Code est copié. Colle-le avec <b>Ctrl+V</b>.</p>
@@ -256,6 +257,15 @@ class MainWindow(QMainWindow):
         col = QVBoxLayout(panel)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(8)
+        self.record_btn = QPushButton()  # en tête de la liste : le nouveau retour viendra s'y ajouter
+        self.record_btn.setObjectName("record")
+        self.record_btn.clicked.connect(self.record_clicked.emit)
+        col.addWidget(self.record_btn)
+        self.record_hint = self._muted("")
+        self.record_hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.record_hint.setWordWrap(True)
+        col.addWidget(self.record_hint)
+        col.addSpacing(8)
         label = QLabel("MES RETOURS")
         label.setObjectName("section")
         col.addWidget(label)
@@ -272,23 +282,19 @@ class MainWindow(QMainWindow):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(10)
 
-        card = QFrame()
+        card = self.card = QFrame()  # visible seulement pendant un enregistrement
         card.setObjectName("card")
         card_col = QVBoxLayout(card)
         card_col.setContentsMargins(16, 14, 16, 12)
         card_col.setSpacing(8)
         row = QHBoxLayout()
         row.setSpacing(10)
-        self.record_btn = QPushButton()
-        self.record_btn.setObjectName("record")
-        self.record_btn.clicked.connect(self.record_clicked.emit)
         self.capture_btn = QPushButton(" Capturer")
         self.capture_btn.setIcon(glyph_icon("camera"))
         self.capture_btn.clicked.connect(self.capture_clicked.emit)
         self.pause_btn = QPushButton(" Pause")
         self.pause_btn.setIcon(glyph_icon("pause"))
         self.pause_btn.clicked.connect(self.pause_clicked.emit)
-        row.addWidget(self.record_btn)
         row.addWidget(self.capture_btn)
         row.addWidget(self.pause_btn)
         row.addStretch(1)
@@ -361,20 +367,20 @@ class MainWindow(QMainWindow):
         self.record_btn.style().polish(self.record_btn)
         self.record_btn.setEnabled(mode in ("idle", "recording", "paused"))
         if live:
-            self.record_btn.setText("■   Terminer et préparer le retour")
+            self.record_btn.setText("■   Terminer le retour")
+            self.record_hint.setText(f"ou {record}")
             self.hint.setText(
                 f"{record} pour terminer · {capture}, le bouton Capturer, « capture », « regarde », « là »… : écran "
                 "sous ta souris · « retire la capture », « point suivant »"
             )
         elif mode == "finishing":
-            self.record_btn.setText("Transcription des dernières phrases…")
-            self.hint.setText("Encore une seconde : le retour se prépare.")
+            self.record_btn.setText("Préparation du retour…")
+            self.record_hint.setText("encore une seconde")
+            self.hint.setText("Transcription des dernières phrases : le retour se prépare.")
         else:
             self.record_btn.setText("●   Démarrer un retour")
-            self.hint.setText(
-                f"Ou {record}, même depuis une autre appli. Pendant l'enregistrement : {capture}, « capture » ou "
-                "« regarde » pour capturer l'écran sous ta souris. Clique sur une capture pour la voir en grand."
-            )
+            self.record_hint.setText(f"ou {record} depuis n'importe où")
+        self.card.setVisible(live or mode == "finishing")
         self.capture_btn.setVisible(live)
         self.capture_btn.setToolTip(f"Capturer l'écran sous la souris ({capture})")
         self.pause_btn.setVisible(live)
