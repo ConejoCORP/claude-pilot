@@ -30,12 +30,17 @@ def test_je_regarde_ne_declenche_rien():
 
 
 def test_mots_du_quotidien_capturent_et_restent_dans_le_texte():
-    found = actions("Là, tu vois, ici le bouton")
-    assert [(a.phrase, a.remove, a.everyday) for a in found] == [
-        ("là", False, True), ("tu vois", False, True), ("ici", False, True),
-    ]
-    assert kinds("clique là-dessus") == [("capture", "là", False)]
-    assert kinds("ce bouton-là est cassé") == [("capture", "là", False)]
+    found = actions("Tu vois, ici le bouton")
+    assert [(a.phrase, a.remove, a.everyday) for a in found] == [("tu vois", False, True), ("ici", False, True)]
+
+
+def test_la_ne_capture_plus():
+    assert kinds("Là il y a un bug, là-dessus, ce bouton-là") == []
+
+
+def test_mot_ajoute_avec_trait_d_union():
+    found = detect(words("clique là-dessus, ce bouton-là"), ["là"], ["là"])
+    assert [a.phrase for a in found] == ["là", "là"]
 
 
 def test_la_voila_et_d_ici_ne_capturent_pas():

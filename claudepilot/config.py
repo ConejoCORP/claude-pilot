@@ -52,12 +52,16 @@ ENGINE_LABELS = {
 # Banc d'essai du 29/10/2026 (RTX 5080) : Parakeet 0 % d'erreur et 69× le temps réel, sans mot inventé.
 DEFAULT_ENGINE = "parakeet-v3"
 
-DEFAULT_TRIGGERS = ["capture d'écran", "capture", "screenshot", "screen", "regarde", "tu vois", "là", "ici"]
-DEFAULT_KEPT = ["regarde", "tu vois", "là", "ici"]  # mots du quotidien : ils restent dans le texte
+DEFAULT_TRIGGERS = ["capture d'écran", "capture", "screenshot", "screen", "regarde", "tu vois", "ici"]
+DEFAULT_KEPT = ["regarde", "tu vois", "ici"]  # mots du quotidien : ils restent dans le texte
 # Listes par défaut des versions précédentes : remplacées par les nouvelles tant que l'utilisateur n'y a pas touché.
+# (« là », ajouté en 1.0.2, est retiré en 1.0.6 : trop courant à l'oral, il capturait à tout bout de champ.)
 _FORMER_DEFAULTS = {
-    "triggers": [["capture d'écran", "capture", "screenshot", "screen", "regarde"]],
-    "triggers_kept": [["regarde"]],
+    "triggers": [
+        ["capture d'écran", "capture", "screenshot", "screen", "regarde"],
+        ["capture d'écran", "capture", "screenshot", "screen", "regarde", "tu vois", "là", "ici"],
+    ],
+    "triggers_kept": [["regarde"], ["regarde", "tu vois", "là", "ici"]],
 }
 
 log = logging.getLogger(__name__)

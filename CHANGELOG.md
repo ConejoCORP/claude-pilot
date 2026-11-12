@@ -3,6 +3,11 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.6
+
+- **« là » ne prend plus de capture** : trop courant à l'oral, il en déclenchait à tout bout de champ. « regarde »,
+  « tu vois », « ici » et « capture » restent. Tu peux toujours le remettre dans Réglages → Captures.
+
 ## 1.0.5
 
 - **« Démarrer un retour » en haut à gauche**, au-dessus de la liste de tes retours : le nouveau retour vient

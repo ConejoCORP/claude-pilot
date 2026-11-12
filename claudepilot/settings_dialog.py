@@ -101,7 +101,7 @@ class SettingsDialog(QDialog):
         self.kept = QLineEdit(", ".join(cfg.triggers_kept))
         form.addRow("…gardés dans le texte", self.kept)
         form.addRow("", self._note(
-            "Parmi les mots gardés, « regarde » capture à chaque fois. Ceux de tous les jours (« là », « ici », "
+            "Parmi les mots gardés, « regarde » capture à chaque fois. Ceux de tous les jours (« ici », "
             "« tu vois ») ne capturent que si l'écran ou la souris ont bougé depuis la dernière capture."
         ))
         self.commands = QCheckBox("« retire la capture » (ou annule, supprime…), « point suivant »")

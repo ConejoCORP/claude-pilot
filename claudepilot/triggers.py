@@ -1,4 +1,4 @@
-"""Mots déclencheurs (« capture », « regarde », « là »…) et commandes vocales repérés dans la transcription."""
+"""Mots déclencheurs (« capture », « regarde », « ici »…) et commandes vocales repérés dans la transcription."""
 from __future__ import annotations
 
 import re
@@ -43,7 +43,7 @@ class VoiceAction:
     words: tuple[int, ...]  # index des mots concernés
     remove: bool  # retirer ces mots du texte final
     phrase: str
-    everyday: bool = False  # « là », « ici », « tu vois » : mot du quotidien, capture seulement si elle apporte du neuf
+    everyday: bool = False  # « ici », « tu vois » : mot du quotidien, capture seulement si elle apporte du neuf
 
 
 def norm(token: str) -> str:

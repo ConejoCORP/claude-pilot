@@ -16,7 +16,7 @@ Fais tes retours à **Claude Code** en parlant, comme en partage d'écran : ta v
 
 Quand Claude Code te construit une appli, le plus long, c'est de lui expliquer ce qui ne va pas : écrire, faire des captures, les coller dans le bon ordre, préciser « sur la troisième capture, le bouton en bas à droite »…
 
-Avec Claude Pilot, tu appuies sur un raccourci et tu parles en montrant ton écran. Pour montrer quelque chose, tu dis « regarde », « là » ou « capture », ou tu appuies sur `F8`. L'écran sous ta souris est alors capturé, et la capture se place au mot près dans la transcription. À la fin, un seul message est copié : tu le colles dans Claude Code, qui lit tout le retour, captures comprises.
+Avec Claude Pilot, tu appuies sur un raccourci et tu parles en montrant ton écran. Pour montrer quelque chose, tu dis « regarde », « ici » ou « capture », ou tu appuies sur `F8`. L'écran sous ta souris est alors capturé, et la capture se place au mot près dans la transcription. À la fin, un seul message est copié : tu le colles dans Claude Code, qui lit tout le retour, captures comprises.
 
 ## Pourquoi pas juste des captures et du texte ?
 
@@ -25,7 +25,7 @@ Parce qu'un chat mélange l'ordre des images, limite leur nombre (20 par message
 ## Fonctionnalités
 
 - 🎙️ **Transcription locale et stable**, phrase par phrase : rien ne part sur Internet. Trois moteurs au choix (Parakeet TDT v3 par défaut, Whisper large-v3, Whisper turbo), sur carte graphique NVIDIA ou sur processeur
-- 📸 **Captures au bon mot** : raccourci `F8`, bouton, ou à la voix (« capture », « regarde », « tu vois », « là », « ici »). Une « boîte noire » garde les dernières secondes d'écran : la capture dite à voix haute prend l'image du moment exact du mot. Les mots de tous les jours restent dans le texte et ne capturent que si l'écran ou la souris ont bougé
+- 📸 **Captures au bon mot** : raccourci `F8`, bouton, ou à la voix (« capture », « regarde », « tu vois », « ici »). Une « boîte noire » garde les dernières secondes d'écran : la capture dite à voix haute prend l'image du moment exact du mot. Les mots de tous les jours restent dans le texte et ne capturent que si l'écran ou la souris ont bougé
 - 🖱️ **Seulement l'écran où est ta souris** : tout reste lisible, même avec trois écrans. En option, ta souris entourée en rouge sur les captures
 - 🗣️ **Commandes vocales** : « retire la capture » (ou annule, supprime…), et « point suivant » pour découper ton retour en sections. Elles disparaissent du texte
 - 🪟 **Barre flottante** pendant l'enregistrement, invisible dans les captures

@@ -33,7 +33,7 @@ Faire des retours à Claude Code aussi vite qu'en partage d'écran avec un humai
   - actions : copier, ouvrir, récupérer, supprimer.
 - Réglages en onglets (Général, Captures, Transcription, Sons, Claude Code) ; comparer et retranscrire sont dans l'onglet Transcription.
 - Barre flottante pendant l'enregistrement, réglages au thème sombre, bruitages.
-- Captures par raccourci, bouton et voix (« capture », « screen », « regarde » à l'impératif, et « tu vois », « là », « ici » qui ne capturent que si l'écran ou la souris ont bougé), plus les commandes « retire la capture » (annule, supprime, efface…) et « point suivant ».
+- Captures par raccourci, bouton et voix (« capture », « screen », « regarde » à l'impératif, et « tu vois », « ici » qui ne capturent que si l'écran ou la souris ont bougé), plus les commandes « retire la capture » (annule, supprime, efface…) et « point suivant ».
 - Captures cliquables dans la fenêtre : visionneuse plein écran, flèches pour passer d'une capture à l'autre.
 - Trois moteurs interchangeables, comparaison et retranscription d'un retour.
 - Export `retour.md` et `dernier_retour.md`, message pour Claude Code copié à l'arrêt, commande `/retour` installable depuis les Réglages.

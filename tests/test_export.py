@@ -87,9 +87,9 @@ def test_retirer_la_capture_ne_laisse_rien_dans_le_texte():
     assert "Retire" not in body(md) and "d'écran" not in body(md) and "ensuite" in body(md)
 
 
-def test_la_reste_et_le_marqueur_suit():
-    md = render([utt("Le bouton là est décalé", 2.0)], [cap(3.1, "voix")])
-    assert "Le bouton là **[C1 · 0:03]** est décalé" in md
+def test_ici_reste_et_le_marqueur_suit():
+    md = render([utt("Le bouton ici est décalé", 2.0)], [cap(3.1, "voix")])
+    assert "Le bouton ici **[C1 · 0:03]** est décalé" in md
 
 
 def test_parler_de_la_capture_d_avant_garde_la_phrase():

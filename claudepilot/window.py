@@ -84,7 +84,7 @@ et chaque capture à l'instant exact où tu l'as prise.</p>
 <p><b>1.</b> Clique sur <b>Démarrer un retour</b>, en haut à gauche, ou appuie sur <b>{record}</b>, même depuis une
 autre appli.</p>
 <p><b>2.</b> Parle normalement. Pour capturer l'écran où est ta souris : <b>{capture}</b>, le bouton <b>Capturer</b>,
-ou dis « capture », « regarde », « tu vois », « là » ou « ici ».</p>
+ou dis « capture », « regarde », « tu vois » ou « ici ».</p>
 <p><b>3.</b> Termine avec <b>{record}</b> : le message pour Claude Code est copié. Colle-le avec <b>Ctrl+V</b>.</p>
 <p style="color:#71717a;">Commandes vocales : « retire la capture », « point suivant ». Clique sur une capture pour la voir
 en grand.</p>
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
             self.record_btn.setText("■   Terminer le retour")
             self.record_hint.setText(f"ou {record}")
             self.hint.setText(
-                f"{record} pour terminer · {capture}, le bouton Capturer, « capture », « regarde », « là »… : écran "
+                f"{record} pour terminer · {capture}, le bouton Capturer, « capture », « regarde », « ici »… : écran "
                 "sous ta souris · « retire la capture », « point suivant »"
             )
         elif mode == "finishing":

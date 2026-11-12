@@ -18,7 +18,12 @@ def test_nouveaux_mots_pour_les_reglages_d_avant(tmp_path, monkeypatch):
            "triggers_kept": ["regarde"], "microphone": "Chat Mic"}
     path.write_text(json.dumps(old), encoding="utf-8")
     cfg = config.Config.load()
-    assert "là" in cfg.triggers and "tu vois" in cfg.triggers_kept and cfg.microphone == "Chat Mic"
+    assert "ici" in cfg.triggers and "tu vois" in cfg.triggers_kept and cfg.microphone == "Chat Mic"
+    v102 = {"triggers": ["capture d'écran", "capture", "screenshot", "screen", "regarde", "tu vois", "là", "ici"],
+            "triggers_kept": ["regarde", "tu vois", "là", "ici"]}
+    path.write_text(json.dumps(v102), encoding="utf-8")
+    cfg = config.Config.load()
+    assert "là" not in cfg.triggers and "là" not in cfg.triggers_kept  # « là » retiré en 1.0.6
     path.write_text(json.dumps({"triggers": ["capture", "go"]}), encoding="utf-8")
     assert config.Config.load().triggers == ["capture", "go"]  # liste choisie par l'utilisateur : gardée
 

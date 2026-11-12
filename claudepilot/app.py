@@ -36,7 +36,7 @@ from .window import MainWindow
 
 log = logging.getLogger(__name__)
 
-# « là », « ici », « tu vois » restent dans le texte : ce sont des mots du quotidien. Ils ne capturent que si c'est
+# « ici », « tu vois » restent dans le texte : ce sont des mots du quotidien. Ils ne capturent que si c'est
 # utile : pas dans les 3 s autour d'une autre capture, ni la même vue (écran et souris) dans les 20 s.
 EVERYDAY_GAP = 3.0
 SAME_VIEW_WINDOW = 20.0
@@ -86,7 +86,7 @@ class Controller(QObject):
         self.selected: Path | None = None
         self._saves: list[Future] = []
         self._views: dict[str, Frame] = {}  # vignette de chaque capture, pour ne pas reprendre la même vue
-        self._everyday: set[str] = set()  # captures prises sur « là », « tu vois »… : un « regarde » juste après les remplace
+        self._everyday: set[str] = set()  # captures prises sur « ici », « tu vois »… : un « regarde » juste après les remplace
         self._png = ThreadPoolExecutor(max_workers=2, thread_name_prefix="png")
         self._task: str | None = None
         self._quit_after = False
@@ -397,7 +397,7 @@ class Controller(QObject):
             return False
         if action.everyday and self._same_view(frame):
             return False
-        for cap in replaced:  # « là… regarde » : on montre le moment du « regarde »
+        for cap in replaced:  # « ici… regarde » : on montre le moment du « regarde »
             self.session.cancel(cap)
         name = self._store(frame, "voix", action.phrase)
         if action.everyday:
