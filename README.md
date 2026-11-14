@@ -29,6 +29,8 @@ Parce qu'un chat mélange l'ordre des images, limite leur nombre (20 par message
 - 🖱️ **Seulement l'écran où est ta souris** : tout reste lisible, même avec trois écrans. En option, ta souris entourée en rouge sur les captures
 - 🗣️ **Commandes vocales** : « retire la capture » (ou annule, supprime…), et « point suivant » pour découper ton retour en sections. Elles disparaissent du texte
 - 🪟 **Barre flottante** pendant l'enregistrement, invisible dans les captures
+- 📂 **Import d'un audio ou d'une vidéo** déjà enregistré (mp3, m4a, wav, mp4, mkv, mov…) : il est transcrit comme un retour, et pour une vidéo, les images sont prises aux mêmes mots déclencheurs (sinon une toutes les 30 s environ). Bouton sous « Démarrer un retour », ou glisse le fichier sur la fenêtre
+- 🗜️ **Zip d'un retour** : `retour.md` et ses captures, copié d'un clic pour le coller dans un chat, un mail ou un dossier
 - 📝 **Transcription en direct** dans la fenêtre, avec les miniatures (un clic pour les voir en grand), et l'historique de tous tes retours
 - 🤖 **Prêt pour Claude Code** : message copié à l'arrêt (`Ctrl+V`), ou commande `/retour` en option
 - 🔊 **Bruitages discrets** pour suivre chaque action sans regarder l'écran

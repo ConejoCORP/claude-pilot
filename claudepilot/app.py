@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import sys
 import threading
 from collections import Counter
@@ -12,17 +13,18 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import QFile, QObject, QTimer, Signal
+from PySide6.QtCore import QFile, QMimeData, QObject, QTimer, QUrl, Signal
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
-from . import APP_VERSION, claude_code, models, sounds, triggers, winapi
+from . import APP_VERSION, claude_code, importer, models, sounds, triggers, winapi
+from .captures import VoiceCaptures
 from .audio import MicMonitor, Recorder, input_devices
 from .config import ENGINE_LABELS, Config
 from .engines import EngineManager
 from .export import (
     LATEST_NAME, RETOUR_NAME, ExportResult, claude_code_prompt, compute_layout, export_session, exported_images,
-    render_markdown,
+    make_zip, render_markdown,
 )
 from .model import Capture, Utterance, fmt_duration, fmt_time
 from .screen import Frame, ScreenService, render_capture
@@ -36,19 +38,18 @@ from .window import MainWindow
 
 log = logging.getLogger(__name__)
 
-# « ici », « tu vois » restent dans le texte : ce sont des mots du quotidien. Ils ne capturent que si c'est
-# utile : pas dans les 3 s autour d'une autre capture, ni la même vue (écran et souris) dans les 20 s.
-EVERYDAY_GAP = 3.0
-SAME_VIEW_WINDOW = 20.0
-
 
 def to_qimage(image: Image.Image) -> QImage:
     data = image.convert("RGB").tobytes("raw", "RGB")
     return QImage(data, image.width, image.height, image.width * 3, QImage.Format.Format_RGB888).copy()
 
 
+def _short(name: str, size: int = 18) -> str:
+    return name if len(name) <= size else f"{name[:size // 2]}…{name[-(size - size // 2 - 1):]}"
+
+
 def describe(folder: Path) -> dict:
-    """Une ligne de l'historique : date, durée, nombre de captures."""
+    """Une ligne de l'historique : date (et fichier importé), durée, nombre de captures."""
     try:
         started = datetime.strptime(folder.name[:19], "%Y-%m-%d_%H-%M-%S")
         title = f"{started:%d/%m} · {started:%H:%M}"
@@ -60,6 +61,8 @@ def describe(folder: Path) -> dict:
         data = json.loads((folder / STATE).read_text(encoding="utf-8"))
         count = sum(1 for c in data.get("captures", []) if not c.get("cancelled"))
         subtitle = f"{fmt_duration(data.get('duration', 0))} · {count} capture{'s' if count > 1 else ''}"
+        if data.get("source"):
+            title = f"{title} · {_short(data['source'])}"
     except (OSError, ValueError):
         count = len(exported_images(folder))
         subtitle = f"{count} capture{'s' if count > 1 else ''}"
@@ -85,8 +88,7 @@ class Controller(QObject):
         self.last_result: ExportResult | None = None
         self.selected: Path | None = None
         self._saves: list[Future] = []
-        self._views: dict[str, Frame] = {}  # vignette de chaque capture, pour ne pas reprendre la même vue
-        self._everyday: set[str] = set()  # captures prises sur « ici », « tu vois »… : un « regarde » juste après les remplace
+        self.voice: VoiceCaptures | None = None  # captures dites à voix haute pendant l'enregistrement
         self._png = ThreadPoolExecutor(max_workers=2, thread_name_prefix="png")
         self._task: str | None = None
         self._quit_after = False
@@ -118,6 +120,8 @@ class Controller(QObject):
         w.open_clicked.connect(self.open_selected_folder)
         w.delete_clicked.connect(self.delete_selected)
         w.recover_clicked.connect(self.recover_selected)
+        w.zip_clicked.connect(self.zip_selected)
+        w.import_requested.connect(self.import_file)
         w.close_requested.connect(self.quit)
         w.live_image = self._live_image
         self.updater = Updater(self.window, self.cfg, self.force_quit)
@@ -256,7 +260,7 @@ class Controller(QObject):
             self._fail(f"Dossier des retours inaccessible : {exc}")
             return
         self.session, self.session_engine, self._saves = session, self.cfg.engine, []
-        self._views, self._everyday = {}, set()
+        self.voice = VoiceCaptures(session, self._frame_for, self._store)
         try:
             vad = StreamingVAD()
             recorder = Recorder(self.cfg.microphone)
@@ -323,7 +327,14 @@ class Controller(QObject):
         if frame is None:
             self._fail("Capture d'écran impossible")
             return
-        self._store(frame, source, "")
+        self.voice.remember(self._store(frame, source, ""), frame)
+
+    def _frame_for(self, t: float) -> Frame | None:
+        """Image de la boîte noire à ce moment, sinon capture immédiate."""
+        frame = self.screen.frame_at(t) if self.screen else None
+        if (frame is None or abs(frame.t - t) > 2.0) and self.live and self.screen:
+            frame = self.screen.capture()
+        return frame
 
     def _avoid_rects(self) -> list[tuple[int, int, int, int]]:
         """Fenêtres de Claude Pilot à ignorer pour viser l'écran (appelé depuis le fil de capture)."""
@@ -347,7 +358,6 @@ class Controller(QObject):
             round(frame.t, 3), source, name, frame.monitor.number,
             (frame.monitor.width, frame.monitor.height), frame.cursor, trigger,
         ))
-        self._views[name] = Frame(frame.t, frame.monitor, frame.cursor, sig=frame.sig)
         self._live_dirty = True
         self._sound("capture")
         self.overlay.flash()
@@ -368,7 +378,7 @@ class Controller(QObject):
         acted = False
         for action in triggers.detect(utt.words, self.cfg.triggers, self.cfg.triggers_kept, self.cfg.voice_commands):
             if action.kind == "capture":
-                acted |= self._voice_capture(action)
+                acted |= self.voice.capture(action)
             elif action.kind == "cancel":
                 cancelled = session.cancel_last_capture(action.t)
                 if cancelled is not None:
@@ -382,37 +392,6 @@ class Controller(QObject):
         if not acted and utt.words and self.live and self.cfg.sound_each_phrase:
             self._sound("phrase")
 
-    def _voice_capture(self, action: triggers.VoiceAction) -> bool:
-        recent = [c for c in self.session.captures if not c.cancelled and abs(c.t - action.t) < EVERYDAY_GAP]
-        if action.everyday and recent:
-            return False  # une capture vient d'être prise
-        replaced = [c for c in recent if c.raw_file in self._everyday and c.t <= action.t]
-        if any(c not in replaced and abs(c.t - action.t) < 1.5 for c in recent):
-            return False  # déjà capturé au même moment (raccourci + mot)
-        frame = self.screen.frame_at(action.t) if self.screen else None
-        if (frame is None or abs(frame.t - action.t) > 2.0) and self.live and self.screen:
-            frame = self.screen.capture()
-        if frame is None:
-            log.warning("Pas d'image pour la capture vocale de %s", fmt_time(action.t))
-            return False
-        if action.everyday and self._same_view(frame):
-            return False
-        for cap in replaced:  # « ici… regarde » : on montre le moment du « regarde »
-            self.session.cancel(cap)
-        name = self._store(frame, "voix", action.phrase)
-        if action.everyday:
-            self._everyday.add(name)
-        return True
-
-    def _same_view(self, frame: Frame) -> bool:
-        """La dernière capture montre déjà la même chose, depuis peu : une de plus n'apprendrait rien à Claude."""
-        previous = [c for c in self.session.captures if not c.cancelled and c.t <= frame.t + 0.5]
-        if not previous:
-            return False
-        last = max(previous, key=lambda c: c.t)
-        view = self._views.get(last.raw_file)
-        return view is not None and frame.t - last.t < SAME_VIEW_WINDOW and view.same_view(frame)
-
     def _live_image(self, name: str) -> QImage | None:
         """Capture de l'enregistrement en cours, en grand (l'aperçu n'en garde qu'une réduction)."""
         session = self.session
@@ -422,7 +401,7 @@ class Controller(QObject):
         try:
             with Image.open(session.raw_dir / name) as raw:
                 cursor = cap.cursor if self.cfg.cursor_ring else None
-                return to_qimage(render_capture(raw, f"{fmt_time(cap.t)} · écran {cap.monitor}", cursor, 2560))
+                return to_qimage(render_capture(raw, f"{fmt_time(cap.t)} · {cap.where}", cursor, 2560))
         except Exception:
             log.debug("Capture %s pas encore enregistrée", name, exc_info=True)
             return None
@@ -609,6 +588,59 @@ class Controller(QObject):
         folder = self.last_folder()
         if folder is not None:
             os.startfile(folder)
+
+    def zip_selected(self) -> None:
+        """Zip du retour, copié comme un fichier : Ctrl+V dans un chat, un mail ou un dossier."""
+        folder = self.last_folder()
+        if folder is None:
+            return
+        try:
+            path = make_zip(folder)
+        except OSError as exc:
+            self._fail(f"Zip impossible : {exc}")
+            return
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(path))])
+        QGuiApplication.clipboard().setMimeData(mime)
+        subprocess.Popen(f'explorer /select,"{path}"')
+        self._sound("copy")
+        self.window.notify(f"Zip créé et copié : Ctrl+V pour le coller dans un chat ou un dossier · {path.name}")
+
+    def import_file(self, path: Path) -> None:
+        """Transcrit un audio ou une vidéo déjà enregistré, et en fait un retour comme les autres."""
+        if not importer.is_media(path):
+            self._fail(f"{path.name} n'est pas un fichier audio ou vidéo")
+            return
+        if not self._begin_task(f"Import de {path.name}…"):
+            return
+        title = f"Import de « {path.name} »"
+        self.window.show_busy(title, "Chargement du moteur de transcription…")
+
+        def progress(text: str) -> None:
+            self.run(lambda t=text: self.window.show_busy(title, t) if self._task else None)
+
+        def work():
+            try:
+                engine = self.engines.get(self.cfg.engine)
+                session = importer.import_media(path, self.cfg.retours_path, engine, self.cfg, progress)
+                progress("Préparation du retour…")
+                result = export_session(session, self.cfg)
+
+                def done():
+                    self.last_result = result
+                    count = len(result.images)
+                    text = f"{path.name} transcrit ({count} capture{'s' if count > 1 else ''})"
+                    if self.cfg.copy_prompt_on_stop:
+                        QGuiApplication.clipboard().setText(result.prompt)
+                        text += " · message copié : Ctrl+V dans Claude Code"
+                    self._end_task(text, select=session.folder)
+
+                self.run(done)
+            except Exception as exc:
+                log.exception("Import impossible : %s", path)
+                self.run(lambda e=exc: self._end_task(f"Import de {path.name} impossible : {e}", error=True))
+
+        threading.Thread(target=work, name="import", daemon=True).start()
 
     def compare_selected(self) -> None:
         folder = self.selected

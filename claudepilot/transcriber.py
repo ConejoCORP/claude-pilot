@@ -104,11 +104,14 @@ def session_segments(session, pcm: np.ndarray) -> list[tuple[int, int]]:
 
 
 def transcribe_segments(
-    engine: Engine, pcm: np.ndarray, segments: list[tuple[int, int]], lexicon: list[str]
+    engine: Engine, pcm: np.ndarray, segments: list[tuple[int, int]], lexicon: list[str],
+    progress: Callable[[int, int], None] | None = None,
 ) -> tuple[list[Utterance], float]:
     audio = pcm.astype(np.float32) / 32768.0
     utterances, total = [], 0.0
-    for start, end in segments:
+    for i, (start, end) in enumerate(segments):
+        if progress is not None:
+            progress(i, len(segments))
         t0 = time.perf_counter()
         words = engine.transcribe(audio[start:end], offset=start / SR, lexicon=lexicon)
         elapsed = time.perf_counter() - t0

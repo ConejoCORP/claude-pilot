@@ -3,6 +3,15 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.7
+
+- **Importer un audio ou une vidéo** déjà enregistré : mp3, m4a, wav, mp4, mkv, mov… Bouton sous « Démarrer un
+  retour », ou glisse le fichier sur la fenêtre. Il est transcrit comme un retour, et le message pour Claude Code
+  est copié. Pour une vidéo, les images sont prises aux mêmes mots qu'en direct (« regarde », « capture »…), et
+  s'il n'y en a aucun, une image toutes les 30 secondes environ.
+- **Créer un zip** d'un retour : `retour.md` et ses captures. Le zip est copié : colle-le (Ctrl+V) dans un chat,
+  un mail ou un dossier.
+
 ## 1.0.6
 
 - **« là » ne prend plus de capture** : trop courant à l'oral, il en déclenchait à tout bout de champ. « regarde »,

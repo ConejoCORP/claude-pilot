@@ -35,6 +35,8 @@ Faire des retours à Claude Code aussi vite qu'en partage d'écran avec un humai
 - Barre flottante pendant l'enregistrement, réglages au thème sombre, bruitages.
 - Captures par raccourci, bouton et voix (« capture », « screen », « regarde » à l'impératif, et « tu vois », « ici » qui ne capturent que si l'écran ou la souris ont bougé), plus les commandes « retire la capture » (annule, supprime, efface…) et « point suivant ».
 - Captures cliquables dans la fenêtre : visionneuse plein écran, flèches pour passer d'une capture à l'autre.
+- Import d'un audio ou d'une vidéo (PyAV, déjà installé avec faster-whisper) : transcription, images de la vidéo aux mots déclencheurs avec les règles du direct (`captures.py`), sinon une toutes les 30 s ; glisser-déposer.
+- Zip d'un retour (`retour.md` + captures, chemins courts), copié comme fichier dans le presse-papiers.
 - Trois moteurs interchangeables, comparaison et retranscription d'un retour.
 - Export `retour.md` et `dernier_retour.md`, message pour Claude Code copié à l'arrêt, commande `/retour` installable depuis les Réglages.
 - Reprise après plantage.

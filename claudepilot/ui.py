@@ -14,7 +14,7 @@ APP_ICON = Path(__file__).parent / "assets" / "icon.ico"
 GLYPHS = {  # Segoe Fluent Icons
     "camera": "", "pause": "", "play": "", "stop": "", "mic": "",
     "close": "", "settings": "", "folder": "", "copy": "", "refresh": "",
-    "delete": "", "prev": "", "next": "",
+    "delete": "", "prev": "", "next": "", "import": "", "zip": "",
 }
 
 

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -121,17 +123,27 @@ def render_markdown(
     folder: Path,
     image_ref: Callable[[int], str],
     cursor_ring: bool = False,
+    source: str = "",
 ) -> str:
+    """source : nom du fichier importé ; vide pour un retour enregistré en direct."""
     count = len(captures)
     plural = "s" if count > 1 else ""
-    out = [
-        f"# Retour vocal du {started:%d/%m/%Y} à {started:%H:%M} ({fmt_duration(duration)}, {count} capture{plural})",
-        "",
-        "> **Pour Claude :** transcription automatique de ce que j'ai dit à voix haute en te montrant mon écran.",
-    ]
+    if source:
+        out = [
+            f"# Transcription de « {source} » ({fmt_duration(duration)}, {count} capture{plural})",
+            "",
+            f"> **Pour Claude :** transcription automatique du fichier `{source}`, importé dans Claude Pilot.",
+        ]
+    else:
+        out = [
+            f"# Retour vocal du {started:%d/%m/%Y} à {started:%H:%M} ({fmt_duration(duration)}, {count} capture{plural})",
+            "",
+            "> **Pour Claude :** transcription automatique de ce que j'ai dit à voix haute en te montrant mon écran.",
+        ]
     if count:
+        moment = "image de la vidéo" if source else "capture d'écran prise"
         out += [
-            "> - `[Cn · m:ss]` = capture d'écran prise à cet instant précis de la phrase. "
+            f"> - `[Cn · m:ss]` = {moment} à cet instant précis de la phrase. "
             "Lis chaque capture listée en bas de ce fichier (outil Read) avant de répondre.",
             "> - Sur les captures, le cercle rouge montre où était ma souris (souvent ce dont je parle : "
             "« ce bouton », « ici »). Le bandeau du haut rappelle le numéro et le moment." if cursor_ring else
@@ -228,7 +240,7 @@ def render_markdown(
         out += [f"**[{fmt_time(block['t'] or 0)}]** " + " ".join(block["tokens"]), ""]
         for n in block["caps"]:
             cap = captures[n - 1]
-            out.append(f"![C{n} · {fmt_time(cap.t)} · écran {cap.monitor}]({image_ref(n)})")
+            out.append(f"![C{n} · {fmt_time(cap.t)} · {cap.where}]({image_ref(n)})")
         if block["caps"]:
             out.append("")
 
@@ -236,14 +248,14 @@ def render_markdown(
         out += ["Captures prises sans parole :", ""]
         for n in layout.orphans:
             cap = captures[n - 1]
-            out += [marker(n), "", f"![C{n} · {fmt_time(cap.t)} · écran {cap.monitor}]({image_ref(n)})", ""]
+            out += [marker(n), "", f"![C{n} · {fmt_time(cap.t)} · {cap.where}]({image_ref(n)})", ""]
 
     if count:
         out += ["## Captures (dans l'ordre)", ""]
         for n, cap in enumerate(captures, start=1):
             w, h = cap.size
             out.append(
-                f"{n}. **C{n} · {fmt_time(cap.t)}** · écran {cap.monitor} ({w}×{h}) · {cap.source} — "
+                f"{n}. **C{n} · {fmt_time(cap.t)}** · {cap.where} ({w}×{h}) · {cap.source} — "
                 f"`{folder / names[n - 1]}`"
             )
         out.append("")
@@ -275,7 +287,7 @@ def export_session(session, cfg) -> ExportResult:
     for n, cap in enumerate(captures, start=1):
         name = capture_filename(n, cap.t)
         with Image.open(session.raw_dir / cap.raw_file) as raw:
-            label = f"C{n} · {fmt_time(cap.t)} · écran {cap.monitor}"
+            label = f"C{n} · {fmt_time(cap.t)} · {cap.where}"
             rendered = render_capture(raw, label, cap.cursor if cfg.cursor_ring else None, cfg.export_max_px)
         rendered.save(folder / name, "PNG", compress_level=6)
         names.append(name)
@@ -284,14 +296,30 @@ def export_session(session, cfg) -> ExportResult:
     layout = compute_layout(session.utterances, captures, cfg.triggers, cfg.triggers_kept, cfg.voice_commands)
     common = (session.utterances, captures, names, layout, session.started, session.duration,
               session.engine_label, folder)
+    options = {"cursor_ring": cfg.cursor_ring, "source": session.source}
     md_path = folder / RETOUR_NAME
-    md_path.write_text(render_markdown(*common, image_ref=lambda n: names[n - 1], cursor_ring=cfg.cursor_ring),
-                       encoding="utf-8")
+    md_path.write_text(render_markdown(*common, image_ref=lambda n: names[n - 1], **options), encoding="utf-8")
     latest_path = folder.parent / LATEST_NAME
     latest_path.write_text(
-        render_markdown(*common, image_ref=lambda n: f"<{(folder / names[n - 1]).as_posix()}>",
-                        cursor_ring=cfg.cursor_ring),
+        render_markdown(*common, image_ref=lambda n: f"<{(folder / names[n - 1]).as_posix()}>", **options),
         encoding="utf-8",
     )
     session.save()
     return ExportResult(md_path, latest_path, images, claude_code_prompt(md_path, len(captures)))
+
+
+def make_zip(folder: Path) -> Path:
+    """retour.md et ses captures dans un zip rangé dans le dossier du retour : à glisser dans un chat ou à envoyer.
+
+    La liste finale de retour.md donne des chemins complets (pour Claude Code) : dans le zip, les noms suffisent.
+    """
+    md = (folder / RETOUR_NAME).read_text(encoding="utf-8").replace(str(folder) + os.sep, "")
+    name = f"Retour {folder.name}"
+    path = folder / f"{name}.zip"
+    tmp = path.with_suffix(".tmp")
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(f"{name}/{RETOUR_NAME}", md)
+        for image in exported_images(folder):
+            archive.write(image, f"{name}/{image.name}", compress_type=zipfile.ZIP_STORED)  # PNG : déjà compressé
+    tmp.replace(path)
+    return path

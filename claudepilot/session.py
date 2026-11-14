@@ -25,6 +25,7 @@ class Session:
         self.utterances: list[Utterance] = []
         self.duration = 0.0
         self.engine_label = ""
+        self.source = ""  # nom du fichier audio ou vidéo importé ; vide pour un enregistrement
         self._lock = threading.Lock()
 
     @classmethod
@@ -51,6 +52,10 @@ class Session:
         line = json.dumps({"event": event, **data}, ensure_ascii=False)
         with self._lock, open(self.folder / JOURNAL, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+
+    def set_source(self, name: str) -> None:
+        self.source = name
+        self.log("source", name=name)
 
     def add_capture(self, cap: Capture) -> None:
         self.captures.append(cap)
@@ -89,6 +94,7 @@ class Session:
             "started": self.started.isoformat(timespec="seconds"),
             "duration": self.duration,
             "engine": self.engine_label,
+            "source": self.source,
             "captures": [asdict(c) for c in self.captures],
             "utterances": [asdict(u) for u in self.utterances],
         }
@@ -105,6 +111,7 @@ class Session:
             session = cls(folder, datetime.fromisoformat(data["started"]))
             session.duration = data.get("duration", 0.0)
             session.engine_label = data.get("engine", "")
+            session.source = data.get("source", "")
             session.captures = [_capture(d) for d in data.get("captures", [])]
             session.utterances = [_utterance(d) for d in data.get("utterances", [])]
         else:
@@ -117,6 +124,8 @@ class Session:
                 kind = event.pop("event", "")
                 if kind == "start":
                     session.started = datetime.fromisoformat(event["started"])
+                elif kind == "source":
+                    session.source = event.get("name", "")
                 elif kind == "capture":
                     session.captures.append(_capture(event))
                 elif kind == "cancel":

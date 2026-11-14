@@ -7,15 +7,16 @@ from functools import partial
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QSize, QStandardPaths, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QIcon, QImage, QTextDocument
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow, QPushButton,
+    QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow, QPushButton,
     QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget,
 )
 
 from . import winapi
 from .config import ENGINE_LABELS, Config
+from .importer import MEDIA_EXTENSIONS, is_media
 from .ui import APP_ICON, LevelMeter, glyph_icon
 from .viewer import CaptureViewer
 
@@ -88,6 +89,12 @@ ou dis « capture », « regarde », « tu vois » ou « ici ».</p>
 <p><b>3.</b> Termine avec <b>{record}</b> : le message pour Claude Code est copié. Colle-le avec <b>Ctrl+V</b>.</p>
 <p style="color:#71717a;">Commandes vocales : « retire la capture », « point suivant ». Clique sur une capture pour la voir
 en grand.</p>
+<p style="color:#71717a;">Déjà enregistré ? <b>Importe un audio ou une vidéo</b> (ou glisse-le sur la fenêtre) : il est
+transcrit, et pour une vidéo, les images sont prises aux mêmes mots.</p>
+"""
+BUSY = """
+<h2 style="color:#f4f4f5;">{title}</h2>
+<p style="color:#a1a1aa;">{text}</p>
 """
 UNFINISHED = """
 <h2 style="color:#fbbf24;">Enregistrement interrompu</h2>
@@ -180,6 +187,8 @@ class MainWindow(QMainWindow):
     open_clicked = Signal()
     delete_clicked = Signal()
     recover_clicked = Signal()
+    zip_clicked = Signal()
+    import_requested = Signal(object)  # Path du fichier audio ou vidéo à transcrire
     close_requested = Signal()
 
     def __init__(self):
@@ -211,6 +220,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
         outer.addWidget(splitter, 1)
         self.statusBar().setSizeGripEnabled(False)
+        self.setAcceptDrops(True)  # un audio ou une vidéo glissé sur la fenêtre est importé
 
     # --- construction
     def _header(self) -> QHBoxLayout:
@@ -265,6 +275,12 @@ class MainWindow(QMainWindow):
         self.record_hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self.record_hint.setWordWrap(True)
         col.addWidget(self.record_hint)
+        self.import_btn = QPushButton(" Importer un audio ou une vidéo")
+        self.import_btn.setIcon(glyph_icon("import"))
+        self.import_btn.setToolTip("mp3, m4a, wav, mp4, mkv, mov… : transcrit, avec les images d'une vidéo aux mots "
+                                   "déclencheurs. Tu peux aussi glisser le fichier sur la fenêtre.")
+        self.import_btn.clicked.connect(self._choose_file)
+        col.addWidget(self.import_btn)
         col.addSpacing(8)
         label = QLabel("MES RETOURS")
         label.setObjectName("section")
@@ -313,6 +329,8 @@ class MainWindow(QMainWindow):
 
         self.preview = Preview()
         self.preview.anchorClicked.connect(self._open_capture)
+        self.preview.setAcceptDrops(False)  # un fichier glissé ici va à la fenêtre, qui l'importe
+        self.preview.viewport().setAcceptDrops(False)
         col.addWidget(self.preview, 1)
 
         actions = QHBoxLayout()
@@ -320,8 +338,10 @@ class MainWindow(QMainWindow):
         self.copy_btn = self._action("copy", "Copier pour Claude Code", self.copy_clicked, primary=True)
         self.recover_btn = self._action("refresh", "Récupérer cet enregistrement", self.recover_clicked, primary=True)
         self.open_btn = self._action("folder", "Ouvrir le dossier", self.open_clicked)
+        self.zip_btn = self._action("zip", "Créer un zip", self.zip_clicked)
+        self.zip_btn.setToolTip("retour.md et ses captures dans un zip, copié pour le coller dans un chat ou un dossier")
         self.delete_btn = self._action("delete", "Supprimer", self.delete_clicked)
-        for button in (self.copy_btn, self.recover_btn, self.open_btn):
+        for button in (self.copy_btn, self.recover_btn, self.open_btn, self.zip_btn):
             actions.addWidget(button)
         actions.addStretch(1)
         actions.addWidget(self.delete_btn)
@@ -390,12 +410,12 @@ class MainWindow(QMainWindow):
             widget.setVisible(live or mode == "finishing")
         self.level.setVisible(live)
         idle = mode == "idle"
-        for widget in (self.engine, self.mic, self.mic_test, self.settings_btn, self.history):
+        for widget in (self.engine, self.mic, self.mic_test, self.settings_btn, self.history, self.import_btn):
             widget.setEnabled(idle or (widget is self.history and mode == "busy"))
 
     def set_actions(self, kind: str | None) -> None:
         """None (rien de sélectionné), ready, unfinished ou busy."""
-        for button in (self.copy_btn, self.open_btn):
+        for button in (self.copy_btn, self.open_btn, self.zip_btn):
             button.setVisible(kind != "unfinished")
             button.setEnabled(kind == "ready")
         self.recover_btn.setVisible(kind == "unfinished")
@@ -456,6 +476,10 @@ class MainWindow(QMainWindow):
         self.preview.setHtml(WELCOME.format(record=winapi.display_hotkey(cfg.hotkey_record),
                                             capture=winapi.display_hotkey(cfg.hotkey_capture)))
 
+    def show_busy(self, title: str, text: str) -> None:
+        self._images = []
+        self.preview.setHtml(BUSY.format(title=html.escape(title), text=html.escape(text)))
+
     def show_unfinished(self) -> None:
         self._images = []
         self.preview.setHtml(UNFINISHED)
@@ -499,6 +523,31 @@ class MainWindow(QMainWindow):
 
     def clear_live_images(self) -> None:
         self.preview.images = {k: v for k, v in self.preview.images.items() if not k.startswith("cap:")}
+
+    # --- import d'un fichier
+    def _choose_file(self) -> None:
+        start = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MoviesLocation)
+        patterns = " ".join(f"*{ext}" for ext in MEDIA_EXTENSIONS)
+        path, _ = QFileDialog.getOpenFileName(self, "Importer un audio ou une vidéo", start,
+                                              f"Audio ou vidéo ({patterns});;Tous les fichiers (*)")
+        if path:
+            self.import_requested.emit(Path(path))
+
+    @staticmethod
+    def _dropped_media(event) -> Path | None:
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        path = Path(urls[0].toLocalFile()) if len(urls) == 1 and urls[0].isLocalFile() else None
+        return path if path is not None and is_media(path) else None
+
+    def dragEnterEvent(self, event) -> None:
+        if self.import_btn.isEnabled() and self._dropped_media(event) is not None:
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:
+        path = self._dropped_media(event)
+        if path is not None and self.import_btn.isEnabled():
+            event.acceptProposedAction()
+            self.import_requested.emit(path)
 
     # --- fenêtre
     def physical_rect(self) -> tuple[int, int, int, int] | None:

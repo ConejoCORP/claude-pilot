@@ -41,6 +41,11 @@ class Capture:
     trigger: str = ""  # mot déclencheur pour une capture vocale
     cancelled: bool = False
 
+    @property
+    def where(self) -> str:
+        """« écran 2 », ou « vidéo » pour une image tirée d'un fichier importé (écran 0)."""
+        return f"écran {self.monitor}" if self.monitor else "vidéo"
+
 
 def fmt_time(seconds: float) -> str:
     """0:12, 4:05 ou 1:02:03."""
