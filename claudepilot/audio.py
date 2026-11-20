@@ -28,6 +28,31 @@ def input_devices() -> list[str]:
     return names
 
 
+def default_input() -> str:
+    """Nom du micro par défaut de Windows ("" s'il n'y en a pas)."""
+    try:
+        return sd.query_devices(kind="input")["name"]
+    except (sd.PortAudioError, ValueError):
+        return ""
+
+
+def refresh_devices() -> None:
+    """Relit les micros : PortAudio garde la liste du lancement, même si Windows change de micro par défaut entre-temps.
+    Aucun flux audio ne doit être ouvert."""
+    sd._terminate()
+    sd._initialize()
+
+
+def microphone_problem(chosen: str, last: str, default: str, names: list[str]) -> str | None:
+    """« missing » : le micro choisi est débranché. « changed » : réglé sur le micro par défaut, mais Windows a changé
+    de micro depuis le dernier retour où l'on a entendu quelqu'un (une carte d'acquisition rebranchée, par exemple)."""
+    if chosen:
+        return "missing" if chosen not in names else None
+    if last and default and default != last:
+        return "changed"
+    return None
+
+
 def _find_device(name: str) -> int | None:
     if not name:
         return None

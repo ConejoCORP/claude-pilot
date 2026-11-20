@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from . import APP_VERSION, claude_code, importer, models, sounds, triggers, winapi
 from .captures import VoiceCaptures
-from .audio import MicMonitor, Recorder, input_devices
+from .audio import MicMonitor, Recorder, default_input, input_devices, microphone_problem, refresh_devices
 from .config import ENGINE_LABELS, Config
 from .engines import EngineManager
 from .export import (
@@ -95,6 +95,7 @@ class Controller(QObject):
         self._engine_shown = ""
         self._loudest = -120.0  # niveau le plus fort entendu depuis le début de l'enregistrement
         self._mic_warned = False
+        self._session_mic = ""  # micro réellement utilisé par l'enregistrement en cours
         self._live_dirty = False
         self._mic_monitor: MicMonitor | None = None
 
@@ -140,7 +141,7 @@ class Controller(QObject):
         sounds.prepare(self.cfg.sound_volume)
         self.hotkeys.start()
         ok = self.hotkeys.register("record", self.cfg.hotkey_record)
-        self.window.init_controls(self.cfg, input_devices())
+        self.window.init_controls(self.cfg, input_devices(), default_input())
         self.window.set_mode("idle", self.cfg)
         self.refresh_history(select_latest=True)
         self.window.show()
@@ -153,7 +154,40 @@ class Controller(QObject):
                                error=True)
         elif "--updated" in sys.argv:
             self.window.notify(f"Claude Pilot est à jour : version {APP_VERSION}")
-        QTimer.singleShot(2500, self.updater.check_on_startup)
+        QTimer.singleShot(600, self._startup_checks)
+
+    def _startup_checks(self) -> None:
+        self._check_microphone(ask=True)
+        QTimer.singleShot(1500, self.updater.check_on_startup)  # après la question sur le micro, pas en même temps
+
+    def _check_microphone(self, ask: bool) -> None:
+        """Micro débranché, ou Windows qui change de micro par défaut (une carte d'acquisition rebranchée…) : on le
+        dit avant d'enregistrer du silence. Au lancement, on propose de garder le micro des derniers retours."""
+        names, default, last = input_devices(), default_input(), self.cfg.last_mic
+        problem = microphone_problem(self.cfg.microphone, last, default, names)
+        if problem == "missing":
+            self._fail(f"Micro « {self.cfg.microphone} » introuvable : Claude Pilot utilise celui de Windows ({default})")
+            return
+        if problem != "changed":
+            return
+        if not ask or last not in names:
+            self._fail(f"Windows a changé de micro par défaut : {default}. Ton micro habituel ({last}) se choisit en "
+                       "haut de la fenêtre.")
+            return
+        box = QMessageBox(QMessageBox.Icon.Question, "Micro",
+                          f"Windows utilise maintenant « {default} » comme micro par défaut.\n\n"
+                          f"Tes derniers retours ont été enregistrés avec « {last} ». Lequel utiliser ?", parent=self.window)
+        keep = box.addButton(f"Garder « {last} »", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(f"Passer à « {default} »", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(keep)
+        box.exec()
+        if box.clickedButton() is keep:
+            self.cfg.microphone = last  # choisi pour de bon : Windows ne pourra plus le changer
+            self.window.notify(f"Micro : {last}")
+        else:
+            self.cfg.last_mic = default
+        self.cfg.save()
+        self.window.init_controls(self.cfg, names, default)
 
     def run(self, fn) -> None:
         self.call.emit(fn)
@@ -254,6 +288,8 @@ class Controller(QObject):
         if self.state != "idle" or self._task is not None:
             return
         self._mic_test(False)
+        refresh_devices()  # Windows a pu changer de micro depuis le lancement
+        self._session_mic = self.cfg.microphone if self.cfg.microphone in input_devices() else default_input()
         try:
             session = Session.create(self.cfg.retours_path)
         except OSError as exc:
@@ -301,6 +337,7 @@ class Controller(QObject):
         self.window.clear_live_images()
         self._live_dirty = True
         self._sound("start")
+        self._check_microphone(ask=False)
         if self.engines.loaded(self.session_engine) is None:
             self._preload(self.session_engine)
 
@@ -451,6 +488,9 @@ class Controller(QObject):
 
     def _exported(self, session: Session, result: ExportResult) -> None:
         self.last_result = result
+        if any(u.words for u in session.utterances) and self._session_mic and self._session_mic != self.cfg.last_mic:
+            self.cfg.last_mic = self._session_mic  # ce micro marche : on saura si Windows en change
+            self.cfg.save()
         self.session, self.state = None, "idle"
         self.window.set_mode("idle", self.cfg)
         self.refresh_history(select=session.folder)
@@ -502,9 +542,9 @@ class Controller(QObject):
             self.overlay.update_live(now, count, level)
             self.window.update_live(now, count, level)
             self._loudest = max(self._loudest, level)
-            if self.state == "recording" and not self._mic_warned and now > 8.0 and self._loudest < -80.0:
+            if self.state == "recording" and not self._mic_warned and now > 4.0 and self._loudest < -80.0:
                 self._mic_warned = True  # silence numérique : mauvais micro, ou micro coupé
-                name = self.cfg.microphone or "micro par défaut de Windows"
+                name = self._session_mic or "micro par défaut de Windows"
                 self._fail(f"Le micro ({name}) ne capte rien : choisis-en un autre en haut de la fenêtre")
             label = self._engine_label()
             if label != self._engine_shown:
@@ -783,7 +823,7 @@ class Controller(QObject):
     def open_settings(self) -> None:
         selected = self.selected if self.selected is not None and (self.selected / RETOUR_NAME).exists() else None
         dialog = SettingsDialog(
-            self.cfg, input_devices(), parent=self.window, on_install=self.install_claude_code,
+            self.cfg, input_devices(), parent=self.window, on_install=self.install_claude_code, default_mic=default_input(),
             selected_label=describe(selected)["title"] if selected is not None else None,
             on_check_updates=self.updater.check_now,
         )
@@ -801,7 +841,7 @@ class Controller(QObject):
         if (self.cfg.engine, self.cfg.device) != before[1:3]:
             self._update_engine_status()
             self._preload(self.cfg.engine)
-        self.window.init_controls(self.cfg, input_devices())
+        self.window.init_controls(self.cfg, input_devices(), default_input())
         if self.state == "idle" and self._task is None:
             self.window.set_mode("idle", self.cfg)
             self.refresh_history(select=self.selected)

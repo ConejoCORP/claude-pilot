@@ -72,6 +72,7 @@ class Config:
     engine: str = DEFAULT_ENGINE
     device: str = "auto"  # auto, cuda ou cpu
     microphone: str = ""  # vide = micro par défaut de Windows
+    last_mic: str = ""  # micro du dernier retour où l'on a entendu quelqu'un : repère si Windows en change
     retours_dir: str = str(DEFAULT_RETOURS_DIR)
     hotkey_record: str = "Ctrl+Alt+Space"
     hotkey_capture: str = "F8"

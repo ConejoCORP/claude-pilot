@@ -6,8 +6,9 @@ import pytest
 from PIL import Image, ImageDraw
 
 from claudepilot import config, sounds
+from claudepilot.audio import microphone_problem
 from claudepilot.screen import Frame, Monitor, signature
-from claudepilot.window import to_html
+from claudepilot.window import default_mic_label, to_html
 from claudepilot.winapi import MOD_ALT, MOD_CONTROL, MOD_SHIFT, parse_hotkey
 
 
@@ -71,3 +72,15 @@ def test_tous_les_bruitages_sont_propres(tmp_path, monkeypatch):
         assert 0.05 < len(x) / sounds.SR < 2.0, name
         assert abs(20 * np.log10(np.max(np.abs(x))) - peak_db) < 0.5, name  # niveau prévu, sans saturation
         assert abs(np.mean(x)) < 0.01, name
+
+
+def test_micro_debranche_ou_change_par_windows():
+    names = ["Sample (TC-HELICON GoXLR)", "Elgato 4K X (2- Elgato 4K X)"]
+    goxlr, elgato = names
+    assert microphone_problem("", goxlr, elgato, names) == "changed"  # Windows est passé sur la carte Elgato
+    assert microphone_problem("", goxlr, goxlr, names) is None
+    assert microphone_problem("", "", elgato, names) is None  # aucun retour encore : rien à comparer
+    assert microphone_problem(goxlr, "", elgato, names) is None  # micro choisi : Windows n'y touche pas
+    assert microphone_problem("Chat Mic (TC-HELICON GoXLR)", "", elgato, names) == "missing"
+    assert default_mic_label(elgato) == "Windows : Elgato 4K X (2- Elgato 4K…"
+    assert default_mic_label("") == "Micro par défaut de Windows"

@@ -3,6 +3,14 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.8
+
+- **Micro surveillé** : si Windows change de micro par défaut (une carte d'acquisition rebranchée, par exemple),
+  Claude Pilot te le dit au lancement et propose de garder ton micro habituel en un clic. Avant, il enregistrait
+  du silence sans rien dire, et la transcription semblait ne plus marcher.
+- La liste Micro affiche le vrai nom du micro par défaut de Windows, un micro choisi puis débranché est signalé,
+  et l'alerte « le micro ne capte rien » arrive au bout de 4 secondes au lieu de 8.
+
 ## 1.0.7
 
 - **Importer un audio ou une vidéo** déjà enregistré : mp3, m4a, wav, mp4, mkv, mov… Bouton sous « Démarrer un

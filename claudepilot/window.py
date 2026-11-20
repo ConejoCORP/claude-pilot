@@ -102,6 +102,13 @@ UNFINISHED = """
 et préparer le retour.</p>
 """
 
+def default_mic_label(name: str) -> str:
+    """Le micro par défaut, avec son vrai nom : on voit tout de suite si Windows en a changé."""
+    if not name:
+        return "Micro par défaut de Windows"
+    return f"Windows : {name if len(name) <= 26 else name[:25] + '…'}"
+
+
 _MARKER = re.compile(r"\*\*\[(C\d+ · \d+:\d{2}(?::\d{2})?)\]\*\*")
 _STAMP = re.compile(r"^\*\*\[(\d+:\d{2}(?::\d{2})?)\]\*\*\s?(.*)$")
 _IMAGE = re.compile(r"^!\[(.*?)\]\(<?(.*?)>?\)$")
@@ -365,13 +372,14 @@ class MainWindow(QMainWindow):
         return button
 
     # --- état
-    def init_controls(self, cfg: Config, microphones: list[str]) -> None:
+    def init_controls(self, cfg: Config, microphones: list[str], default_mic: str = "") -> None:
         self.engine.blockSignals(True)
         self.engine.setCurrentIndex(max(0, self.engine.findData(cfg.engine)))
         self.engine.blockSignals(False)
         self.mic.blockSignals(True)
         self.mic.clear()
-        self.mic.addItem("Micro par défaut de Windows", "")
+        self.mic.addItem(default_mic_label(default_mic), "")
+        self.mic.setItemData(0, f"Micro par défaut de Windows : {default_mic or 'aucun'}", Qt.ItemDataRole.ToolTipRole)
         for name in microphones:
             self.mic.addItem(name, name)
         self.mic.setCurrentIndex(max(0, self.mic.findData(cfg.microphone)))

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from . import APP_VERSION, claude_code, sounds, winapi
 from .config import ENGINE_LABELS, Config
+from .window import default_mic_label
 
 
 class SettingsDialog(QDialog):
@@ -24,6 +25,7 @@ class SettingsDialog(QDialog):
         on_install: Callable[[], None] | None = None,
         selected_label: str | None = None,
         on_check_updates: Callable[[], None] | None = None,
+        default_mic: str = "",
     ):
         super().__init__(parent)
         self.setWindowTitle("Réglages de Claude Pilot")
@@ -33,7 +35,7 @@ class SettingsDialog(QDialog):
         self.requested_action: tuple[str, str | None] | None = None  # ("compare", None) ou ("retranscribe", moteur)
 
         tabs = QTabWidget()
-        tabs.addTab(self._general_tab(cfg, microphones), "Général")
+        tabs.addTab(self._general_tab(cfg, microphones, default_mic), "Général")
         tabs.addTab(self._captures_tab(cfg), "Captures")
         tabs.addTab(self._engines_tab(cfg, selected_label), "Transcription")
         tabs.addTab(self._sounds_tab(cfg), "Sons")
@@ -61,10 +63,10 @@ class SettingsDialog(QDialog):
         label.setWordWrap(True)
         return label
 
-    def _general_tab(self, cfg: Config, microphones: list[str]) -> QWidget:
+    def _general_tab(self, cfg: Config, microphones: list[str], default_mic: str) -> QWidget:
         page, form = self._page()
         self.mic = QComboBox()
-        self.mic.addItem("Micro par défaut de Windows", "")
+        self.mic.addItem(default_mic_label(default_mic), "")
         for name in microphones:
             self.mic.addItem(name, name)
         self._select(self.mic, cfg.microphone)

@@ -48,7 +48,7 @@ Parce qu'un chat mélange l'ordre des images, limite leur nombre (20 par message
 
 1. [Télécharge `Claude-Pilot-Setup.exe`](https://github.com/StundZow/claude-pilot/releases/latest/download/Claude-Pilot-Setup.exe) et lance-le. Pas besoin d'être administrateur.
 2. Garde ou change le dossier d'installation, coche les raccourcis voulus, puis **Installer**. La première fois, l'installateur télécharge Python, les composants (≈ 2 Go) et le moteur de transcription (2,5 Go) : compte quelques minutes.
-3. Dans Claude Pilot, clique sur **Tester** à côté du micro et parle : la jauge doit bouger. Sinon, choisis un autre micro dans la liste.
+3. Dans Claude Pilot, clique sur **Tester** à côté du micro et parle : la jauge doit bouger. Sinon, choisis un autre micro dans la liste. Si Windows change de micro par défaut (une carte d'acquisition rebranchée…), Claude Pilot te le signale au lancement.
 4. Clique sur **Démarrer un retour**, ou appuie sur `Ctrl+Alt+Espace` depuis n'importe quelle appli. Parle, capture avec `F8` ou en disant « capture », puis termine avec `Ctrl+Alt+Espace`.
 5. Dans Claude Code : `Ctrl+V`, puis Entrée.
 

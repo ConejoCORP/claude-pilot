@@ -159,6 +159,7 @@ def main() -> None:
     ctrl.cfg.retours_dir = str(out_root)
     ctrl.cfg.sounds = False
     ctrl.cfg.copy_prompt_on_stop = False
+    ctrl.cfg.save = lambda: None  # ne touche pas aux vrais réglages
     if engine:
         ctrl.cfg.engine = engine
     ctrl.engines.get(ctrl.cfg.engine)  # moteur chargé avant de « parler »
