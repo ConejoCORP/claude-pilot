@@ -44,11 +44,38 @@ kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
 
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG), ("mouseData", wintypes.DWORD),
+                ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+class _INPUTUNION(ctypes.Union):
+    _fields_ = [("mi", MOUSEINPUT), ("ki", KEYBDINPUT)]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+
+
+user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+user32.SendInput.restype = wintypes.UINT
+user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+
 WM_QUIT = 0x0012
 WM_HOTKEY = 0x0312
 WM_APP = 0x8000
 MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, MOD_NOREPEAT = 0x1, 0x2, 0x4, 0x8, 0x4000
 WDA_EXCLUDEFROMCAPTURE = 0x11
+INPUT_KEYBOARD, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VK_RETURN = 1, 0x2, 0x4, 0x0D
+GWL_EXSTYLE, WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = -20, 0x8, 0x80, 0x08000000
 ERROR_ALREADY_EXISTS = 183
 
 _MODIFIERS = {
@@ -182,6 +209,40 @@ class HotkeyManager:
             self._names.pop(hk_id, None)
 
 
+def key_events(text: str) -> list[tuple[int, int, int]]:
+    """Frappes (touche, caractère UTF-16, drapeaux) qui écrivent ce texte, quelle que soit la disposition du clavier."""
+    events = []
+    for char in text:
+        if char == "\n":
+            events += [(VK_RETURN, 0, 0), (VK_RETURN, 0, KEYEVENTF_KEYUP)]
+            continue
+        data = char.encode("utf-16-le")
+        for i in range(0, len(data), 2):  # deux unités pour un emoji
+            unit = int.from_bytes(data[i:i + 2], "little")
+            events += [(0, unit, KEYEVENTF_UNICODE), (0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)]
+    return events
+
+
+def type_text(text: str) -> bool:
+    """Écrit le texte là où est le curseur, dans la fenêtre active. False : Windows l'a refusé (appli lancée en
+    administrateur, par exemple)."""
+    events = key_events(text)
+    if not events:
+        return True
+    inputs = (INPUT * len(events))()
+    for slot, (vk, scan, flags) in zip(inputs, events):
+        slot.type = INPUT_KEYBOARD
+        slot.u.ki = KEYBDINPUT(vk, scan, flags, 0, 0)
+    return user32.SendInput(len(events), inputs, ctypes.sizeof(INPUT)) == len(events)
+
+
+def no_activate(hwnd: int) -> None:
+    """Fenêtre qui reste au premier plan sans jamais prendre le clavier : le texte va toujours au bon endroit."""
+    style = user32.GetWindowLongPtrW(wintypes.HWND(hwnd), GWL_EXSTYLE)
+    user32.SetWindowLongPtrW(wintypes.HWND(hwnd), GWL_EXSTYLE,
+                             style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST)
+
+
 def set_dpi_awareness() -> None:
     """Coordonnées en vrais pixels sur tous les écrans (Qt le fait déjà ; utile hors interface)."""
     try:
@@ -238,7 +299,7 @@ def display_hotkey(combo: str) -> str:
     names = {
         "space": "Espace", "espace": "Espace", "shift": "Maj", "maj": "Maj", "del": "Suppr", "delete": "Suppr",
         "ins": "Inser", "insert": "Inser", "esc": "Échap", "escape": "Échap", "enter": "Entrée",
-        "return": "Entrée", "print": "Impr. écran",
+        "return": "Entrée", "print": "Impr. écran", "meta": "Win", "win": "Win",
     }
     return "+".join(names.get(part.strip().lower(), part.strip()) for part in combo.split("+"))
 

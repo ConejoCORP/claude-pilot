@@ -10,7 +10,7 @@ from logging.handlers import RotatingFileHandler
 from .config import LOG_DIR
 
 
-def setup_logging() -> None:
+def setup_logging(filename: str = "claudepilot.log") -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     if sys.stderr is None:  # pythonw : les barres de progression des librairies écriraient dans le vide
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
@@ -20,7 +20,7 @@ def setup_logging() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(threadName)s] %(name)s : %(message)s",
         handlers=[
-            RotatingFileHandler(LOG_DIR / "claudepilot.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
+            RotatingFileHandler(LOG_DIR / filename, maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
             logging.StreamHandler(sys.stderr),
         ],
     )

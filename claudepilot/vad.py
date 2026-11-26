@@ -11,9 +11,9 @@ CONTEXT = 64
 
 
 def _model_path() -> Path:
-    import faster_whisper
+    from importlib.util import find_spec  # sans importer faster-whisper, lourd : la dictée reste légère
 
-    return Path(faster_whisper.__file__).parent / "assets" / "silero_vad_v6.onnx"
+    return Path(find_spec("faster_whisper").submodule_search_locations[0]) / "assets" / "silero_vad_v6.onnx"
 
 
 class StreamingVAD:

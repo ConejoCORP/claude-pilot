@@ -38,6 +38,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._general_tab(cfg, microphones, default_mic), "Général")
         tabs.addTab(self._captures_tab(cfg), "Captures")
         tabs.addTab(self._engines_tab(cfg, selected_label), "Transcription")
+        tabs.addTab(self._dictation_tab(cfg), "Dictée")
         tabs.addTab(self._sounds_tab(cfg), "Sons")
         tabs.addTab(self._claude_tab(), "Claude Code")
         self.tabs = tabs
@@ -174,6 +175,31 @@ class SettingsDialog(QDialog):
             widget.setEnabled(bool(selected_label))
         return page
 
+    def _dictation_tab(self, cfg: Config) -> QWidget:
+        page, form = self._page()
+        form.addRow(self._note(
+            "Écris à la voix dans n'importe quelle appli : appuie sur le raccourci, parle, et chaque phrase s'écrit là "
+            "où est ton curseur dès que tu marques une pause. Rappuie pour arrêter, ou tais-toi 20 secondes."
+        ))
+        self.dictation = QCheckBox("Activer la dictée partout (en arrière-plan, lancée avec Windows)")
+        self.dictation.setChecked(cfg.dictation)
+        form.addRow("Dictée", self.dictation)
+        self.hk_dictation = self._hotkey_edit(cfg.hotkey_dictation)
+        self.hk_dictation.setToolTip("« Meta » est la touche Windows")
+        form.addRow("Raccourci", self.hk_dictation)
+        self.keep = QComboBox()
+        for label, minutes in (("2 minutes", 2), ("10 minutes", 10), ("30 minutes", 30),
+                               ("Toujours (réponse immédiate)", 0)):
+            self.keep.addItem(label, minutes)
+        self.keep.setCurrentIndex(max(0, self.keep.findData(cfg.dictation_keep_min)))
+        form.addRow("Moteur gardé prêt", self.keep)
+        form.addRow("", self._note(
+            "Entre deux dictées, rien ne tourne : le micro est coupé, et le moteur se libère après ce délai (mémoire et "
+            "carte graphique). La dictée suivante attend alors quelques secondes qu'il se recharge, mais tu peux parler "
+            "tout de suite."
+        ))
+        return page
+
     def _sounds_tab(self, cfg: Config) -> QWidget:
         page, form = self._page()
         self.sounds = QCheckBox("Activés")
@@ -230,7 +256,7 @@ class SettingsDialog(QDialog):
 
     @staticmethod
     def _hotkey_edit(combo: str) -> QKeySequenceEdit:
-        edit = QKeySequenceEdit(QKeySequence(combo))
+        edit = QKeySequenceEdit(QKeySequence(combo.replace("Win", "Meta")))  # Qt appelle « Meta » la touche Windows
         edit.setMaximumSequenceLength(1)
         return edit
 
@@ -266,4 +292,7 @@ class SettingsDialog(QDialog):
         cfg.sound_volume = self.volume.value()
         cfg.sound_each_phrase = self.phrase_sound.isChecked()
         cfg.check_updates = self.check_updates.isChecked()
+        cfg.dictation = self.dictation.isChecked()
+        cfg.hotkey_dictation = self._hotkey_text(self.hk_dictation, cfg.hotkey_dictation)
+        cfg.dictation_keep_min = self.keep.currentData()
         cfg.retours_dir = self.retours.text().strip() or cfg.retours_dir

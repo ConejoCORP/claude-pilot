@@ -97,10 +97,12 @@ class Recorder:
         self._file: sf.SoundFile | None = None
         self._thread: threading.Thread | None = None
 
-    def start(self, path: Path) -> None:
+    def start(self, path: Path | None) -> None:
+        """path : fichier FLAC de la session ; None pour la dictée, qui n'écrit rien sur le disque."""
         self._stream = self._open(_find_device(self.device))
         self._latency = float(self._stream.latency)
-        self._file = sf.SoundFile(str(path), "w", samplerate=SR, channels=1, subtype="PCM_16", format="FLAC")
+        if path is not None:
+            self._file = sf.SoundFile(str(path), "w", samplerate=SR, channels=1, subtype="PCM_16", format="FLAC")
         self._thread = threading.Thread(target=self._run, name="audio", daemon=True)
         self._thread.start()
         self._stream.start()
@@ -209,10 +211,11 @@ class Recorder:
                     continue
                 pcm = np.clip(np.round(block * 32767.0), -32768, 32767).astype(np.int16)
                 start = self._append(pcm)
-                try:
-                    self._file.write(pcm)
-                except Exception:
-                    log.exception("Écriture audio impossible")
+                if self._file is not None:
+                    try:
+                        self._file.write(pcm)
+                    except Exception:
+                        log.exception("Écriture audio impossible")
                 self._notify(self.on_audio, pcm, start)
         finally:
             if self._file is not None:

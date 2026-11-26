@@ -272,6 +272,7 @@ def update(target: Path, wait_pid: int | None, launch_after: bool, status, progr
     if wait_pid:
         status("Fermeture de Claude Pilot…")
         wait_for_pid(wait_pid)
+    installinfo.stop_dictation(target / "data", target)  # l'appli la relance à son démarrage
     status("Téléchargement de la nouvelle version…")
     zip_path, version = fetch_app(None, progress)
     status(f"Installation de Claude Pilot {version}…")
@@ -311,6 +312,8 @@ def uninstall(target: Path, silent: bool) -> int:
                 "Tes retours (Documents\\Claude Pilot\\retours) sont conservés."):
             return 0
     installinfo.remove_shortcuts()
+    installinfo.remove_dictation_shortcut()
+    installinfo.stop_dictation(target / "data", target)
     for attempt in range(3):
         try:
             _remove_tree(target)

@@ -11,16 +11,20 @@ Disposition du dossier d'installation :
   data\\      réglages et journaux
   install.json, claude-pilot.ico, Claude-Pilot-Setup.exe (sert à désinstaller)
 """
+import ctypes
 import json
 import os
 import subprocess
 import winreg
+from ctypes import wintypes
 from pathlib import Path
 
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudePilot"
 SHORTCUT_NAME = "Claude Pilot.lnk"
 SETUP_NAME = "Claude-Pilot-Setup.exe"
 INFO_NAME = "install.json"
+DICTATION_SHORTCUT = "Claude Pilot Dictée.lnk"  # dans le dossier Démarrage de Windows
+DICTATION_PIDS = ("dictee.pid", "dictee_moteur.pid")  # dans data\ : la dictée et son moteur
 
 
 def default_install_dir() -> Path:
@@ -92,6 +96,59 @@ def create_shortcuts(install_dir: Path, desktop: bool, start_menu: bool = True) 
 def remove_shortcuts() -> None:
     _ps("foreach ($f in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) "
         f"{{ $p = Join-Path $f {_ps_str(SHORTCUT_NAME)}; if (Test-Path $p) {{ Remove-Item $p -Force }} }}")
+
+
+def create_dictation_shortcut(pythonw_exe: Path, workdir: Path, icon: Path) -> bool:
+    """La dictée se lance avec Windows (dossier Démarrage : visible et désactivable dans le Gestionnaire des tâches)."""
+    return _ps("$w = New-Object -ComObject WScript.Shell; "
+               f"$s = $w.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) "
+               f"{_ps_str(DICTATION_SHORTCUT)})); "
+               f"$s.TargetPath = {_ps_str(str(pythonw_exe))}; $s.Arguments = '-m claudepilot.dictation'; "
+               f"$s.WorkingDirectory = {_ps_str(str(workdir))}; $s.IconLocation = {_ps_str(str(icon) + ',0')}; "
+               "$s.Description = 'Dictée Claude Pilot'; $s.Save()")
+
+
+def remove_dictation_shortcut() -> None:
+    _ps(f"$p = Join-Path ([Environment]::GetFolderPath('Startup')) {_ps_str(DICTATION_SHORTCUT)}; "
+        "if (Test-Path $p) { Remove-Item $p -Force }")
+
+
+def stop_dictation(data_dir: Path, inside: Path) -> bool:
+    """Ferme la dictée et son moteur (avant une mise à jour ou une désinstallation) : sinon ils garderaient des
+    fichiers de l'installation ouverts. Ne touche qu'à des processus lancés depuis « inside »."""
+    stopped = False
+    for name in DICTATION_PIDS:
+        path = data_dir / name
+        try:
+            pid = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        stopped |= _terminate_if_inside(pid, inside)
+        path.unlink(missing_ok=True)
+    return stopped
+
+
+def _terminate_if_inside(pid: int, inside: Path) -> bool:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+                                                    ctypes.POINTER(wintypes.DWORD)]
+    terminate, query, synchronize = 0x0001, 0x1000, 0x00100000
+    handle = kernel32.OpenProcess(terminate | query | synchronize, False, pid)
+    if not handle:
+        return False
+    try:
+        buf, size = ctypes.create_unicode_buffer(32768), wintypes.DWORD(32768)
+        if not kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return False
+        if not Path(buf.value).resolve().is_relative_to(inside.resolve()):
+            return False  # le numéro a été réutilisé par un autre programme : on n'y touche pas
+        kernel32.TerminateProcess(handle, 0)
+        kernel32.WaitForSingleObject(handle, 5000)
+        return True
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def register(install_dir: Path, version: str) -> None:

@@ -3,6 +3,15 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.9
+
+- **Dictée partout avec Maj+Win+H** : dans n'importe quelle appli, appuie sur le raccourci et parle. Chaque
+  phrase s'écrit là où est ton curseur dès que tu marques une pause, avec le même moteur que Claude Pilot.
+  Rappuie pour arrêter, ou tais-toi 20 secondes.
+- Elle tourne en arrière-plan, lancée avec Windows, et ne consomme rien entre deux dictées : micro coupé, et le
+  moteur se libère après 10 minutes (réglable dans Réglages → Dictée). Si le moteur doit se recharger, parle
+  quand même : le texte arrive dès qu'il est prêt. Claude Pilot te la propose au premier lancement.
+
 ## 1.0.8
 
 - **Micro surveillé** : si Windows change de micro par défaut (une carte d'acquisition rebranchée, par exemple),

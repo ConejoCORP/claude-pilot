@@ -90,6 +90,10 @@ class Config:
     sounds: bool = True
     sound_volume: int = 70  # en %
     sound_each_phrase: bool = True  # petit « plip » à chaque phrase transcrite
+    dictation: bool = False  # dictée partout (Maj+Win+H), lancée avec Windows
+    dictation_offered: bool = False  # la dictée a déjà été proposée une fois
+    hotkey_dictation: str = "Shift+Win+H"
+    dictation_keep_min: int = 10  # moteur gardé prêt après une dictée ; 0 = toujours prêt
     check_updates: bool = True  # chercher une nouvelle version à chaque lancement
     skipped_version: str = ""  # version que l'utilisateur a choisi d'ignorer
     overlay_pos: list[int] | None = None

@@ -17,7 +17,7 @@ from PySide6.QtCore import QFile, QMimeData, QObject, QTimer, QUrl, Signal
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
-from . import APP_VERSION, claude_code, importer, models, sounds, triggers, winapi
+from . import APP_VERSION, claude_code, dictation, importer, models, sounds, triggers, winapi
 from .captures import VoiceCaptures
 from .audio import MicMonitor, Recorder, default_input, input_devices, microphone_problem, refresh_devices
 from .config import ENGINE_LABELS, Config
@@ -158,7 +158,31 @@ class Controller(QObject):
 
     def _startup_checks(self) -> None:
         self._check_microphone(ask=True)
-        QTimer.singleShot(1500, self.updater.check_on_startup)  # après la question sur le micro, pas en même temps
+        if self.cfg.dictation:
+            dictation.ensure_running()  # relancée après une mise à jour, ou si elle a été quittée
+        elif not self.cfg.dictation_offered:
+            self._offer_dictation()
+        QTimer.singleShot(1500, self.updater.check_on_startup)  # après les questions, pas en même temps
+
+    def _offer_dictation(self) -> None:
+        """Proposée une seule fois : elle se lance avec Windows, donc pas sans accord."""
+        self.cfg.dictation_offered = True
+        hotkey = winapi.display_hotkey(self.cfg.hotkey_dictation)
+        box = QMessageBox(
+            QMessageBox.Icon.Question, "Nouveau : la dictée partout",
+            f"Avec {hotkey}, écris à la voix dans n'importe quelle appli : chaque phrase s'écrit là où est ton "
+            "curseur, avec le même moteur que Claude Pilot.\n\nElle tourne en arrière-plan (lancée avec Windows) et "
+            "ne consomme rien entre deux dictées. Réglages → Dictée pour changer d'avis.", parent=self.window,
+        )
+        yes = box.addButton("Activer la dictée", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Non merci", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(yes)
+        box.exec()
+        if box.clickedButton() is yes:
+            self.cfg.dictation = True
+            dictation.enable()
+            self.window.notify(f"Dictée activée : {hotkey} dans n'importe quelle appli")
+        self.cfg.save()
 
     def _check_microphone(self, ask: bool) -> None:
         """Micro débranché, ou Windows qui change de micro par défaut (une carte d'acquisition rebranchée…) : on le
@@ -830,8 +854,10 @@ class Controller(QObject):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         before = (self.cfg.hotkey_record, self.cfg.engine, self.cfg.device, self.cfg.sound_volume)
+        dictation_before = (self.cfg.dictation, self.cfg.hotkey_dictation, self.cfg.dictation_keep_min)
         dialog.apply_to(self.cfg)
         self.cfg.save()
+        self._apply_dictation(dictation_before)
         if self.cfg.sound_volume != before[3]:
             sounds.prepare(self.cfg.sound_volume)
         if self.cfg.hotkey_record != before[0] and not self.hotkeys.register("record", self.cfg.hotkey_record):
@@ -852,6 +878,16 @@ class Controller(QObject):
                 self.compare_selected()
             elif action[0] == "retranscribe" and action[1]:
                 self.retranscribe_selected(action[1])
+
+    def _apply_dictation(self, before: tuple) -> None:
+        """Activée, désactivée ou réglée autrement : la dictée en arrière-plan suit tout de suite."""
+        if self.cfg.dictation and not before[0]:
+            if not dictation.enable():
+                self._fail("Dictée activée, mais pas son lancement avec Windows (raccourci de démarrage impossible)")
+        elif before[0] and not self.cfg.dictation:
+            dictation.disable()
+        elif self.cfg.dictation:
+            dictation.ensure_running()  # elle relit ses réglages (raccourci, moteur, micro…)
 
     def install_claude_code(self) -> None:
         retours = self.cfg.retours_path
