@@ -174,7 +174,11 @@ def put_app(install_dir: Path, zip_path: Path) -> None:
     else:
         raise RuntimeError("Claude Pilot est ouvert : ferme-le, puis relance l'installation.")
     _remove_tree(old)
-    shutil.copyfile(app / "claudepilot" / "assets" / "icon.ico", installinfo.icon_path(install_dir))
+    icon = installinfo.icon_path(install_dir)
+    changed = not icon.exists() or icon.read_bytes() != (app / "claudepilot" / "assets" / "icon.ico").read_bytes()
+    shutil.copyfile(app / "claudepilot" / "assets" / "icon.ico", icon)
+    if changed:
+        installinfo.refresh_icons()
 
 
 def put_uv(install_dir: Path) -> Path:

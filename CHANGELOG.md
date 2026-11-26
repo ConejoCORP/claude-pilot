@@ -3,6 +3,13 @@
 Chaque version publiée avec `uv run python release.py X.Y.Z` reprend la section correspondante :
 c'est ce texte que Claude Pilot affiche quand il propose la mise à jour.
 
+## 1.0.10
+
+- **Barre de dictée déplaçable** : glisse-la où tu veux, elle revient au même endroit aux prochaines dictées
+  (sur l'écran où tu travailles). Double-clic dessus pour la remettre en bas. Pendant que tu la déplaces, le
+  texte continue d'aller là où est ton curseur.
+- **Nouvelle icône**, plus simple : juste l'onde de voix.
+
 ## 1.0.9
 
 - **Dictée partout avec Maj+Win+H** : dans n'importe quelle appli, appuie sur le raccourci et parle. Chaque

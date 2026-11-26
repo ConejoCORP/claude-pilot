@@ -37,7 +37,7 @@ Faire des retours à Claude Code aussi vite qu'en partage d'écran avec un humai
 - Captures cliquables dans la fenêtre : visionneuse plein écran, flèches pour passer d'une capture à l'autre.
 - Import d'un audio ou d'une vidéo (PyAV, déjà installé avec faster-whisper) : transcription, images de la vidéo aux mots déclencheurs avec les règles du direct (`captures.py`), sinon une toutes les 30 s ; glisser-déposer.
 - Zip d'un retour (`retour.md` + captures, chemins courts), copié comme fichier dans le presse-papiers.
-- Dictée partout (`dictation.py`) : processus léger lancé avec Windows (≈ 77 Mo, 0 % de processeur au repos), Maj+Win+H, barre qui ne prend pas le clavier, texte écrit par SendInput (Unicode). Le moteur tourne dans un processus à part (`dictation_worker.py`), lancé à la première dictée et fermé après le délai choisi ; le son attend pendant qu'il se charge. Les mises à jour et la désinstallation l'arrêtent d'abord (fichiers pid).
+- Dictée partout (`dictation.py`) : processus léger lancé avec Windows (≈ 77 Mo, 0 % de processeur au repos), Maj+Win+H, barre qui ne prend pas le clavier (déplaçable : place gardée en proportion de l'écran dans `data/dictee_position.json`, à part de config.json), texte écrit par SendInput (Unicode). Le moteur tourne dans un processus à part (`dictation_worker.py`), lancé à la première dictée et fermé après le délai choisi ; le son attend pendant qu'il se charge. Les mises à jour et la désinstallation l'arrêtent d'abord (fichiers pid).
 - Trois moteurs interchangeables, comparaison et retranscription d'un retour.
 - Export `retour.md` et `dernier_retour.md`, message pour Claude Code copié à l'arrêt, commande `/retour` installable depuis les Réglages.
 - Reprise après plantage.

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
-from PySide6.QtCore import QObject, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QPoint, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QFontMetrics, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 
 SERVER = f"ClaudePilotDictee-{getpass.getuser()}"
 PID_FILE = DATA_DIR / installinfo.DICTATION_PIDS[0]
+# Où l'utilisateur a posé la barre, en proportion de l'écran : elle revient au même endroit sur l'écran où il
+# travaille. À part de config.json, que Claude Pilot réécrit en entier avec ses propres réglages.
+SPOT_FILE = DATA_DIR / "dictee_position.json"
 SILENCE_STOP_S = 20.0  # plus personne ne parle : la dictée s'arrête toute seule
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -145,16 +148,23 @@ class EngineProcess:
 
 # --- barre affichée pendant la dictée
 class DictationPill(QWidget):
-    """En bas de l'écran pendant la dictée. Elle ne prend jamais le clavier : le texte va là où était le curseur."""
+    """En bas de l'écran pendant la dictée, ou là où on l'a glissée. Elle ne prend jamais le clavier : le texte va
+    là où était le curseur, même pendant qu'on la déplace."""
 
     stop_clicked = Signal()
 
-    def __init__(self):
+    def __init__(self, spot_file: Path = SPOT_FILE):
         super().__init__(None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
                          | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setFixedSize(460, 64)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("Glisse la barre pour la déplacer · double-clic pour la remettre en bas")
+        self.spot_file = spot_file
+        self.spot = self._read_spot()  # (x, y) entre 0 et 1 ; None : en bas, au milieu
+        self._drag: QPoint | None = None
+        self._drag_from = QPoint()
         row = QHBoxLayout(self)
         row.setContentsMargins(18, 10, 10, 10)
         row.setSpacing(12)
@@ -175,6 +185,7 @@ class DictationPill(QWidget):
         stop = QToolButton()
         stop.setIcon(glyph_icon("stop", color="#e8e8ea", size=18))
         stop.setToolTip("Arrêter la dictée")
+        stop.setCursor(Qt.CursorShape.ArrowCursor)
         stop.setStyleSheet("QToolButton { background: #27272a; border: none; border-radius: 16px; padding: 7px; }"
                            "QToolButton:hover { background: #3f3f46; }")
         stop.clicked.connect(self.stop_clicked.emit)
@@ -189,11 +200,68 @@ class DictationPill(QWidget):
         self.detail.setText(QFontMetrics(self.detail.font()).elidedText(detail, Qt.TextElideMode.ElideLeft, width))
 
     def show_bar(self) -> None:
-        screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
-        area = screen.availableGeometry()
-        self.move(area.x() + (area.width() - self.width()) // 2, area.bottom() - self.height() - 28)
+        if not self.isVisible():  # déjà affichée : elle reste où elle est
+            screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+            self.move(self.home(screen.availableGeometry()))
         self.show()
         winapi.no_activate(int(self.winId()))
+
+    def home(self, area: QRect) -> QPoint:
+        """Sa place sur cet écran : celle où on l'a posée, sinon en bas au milieu."""
+        if self.spot is None:
+            return QPoint(area.x() + (area.width() - self.width()) // 2, area.bottom() - self.height() - 28)
+        fx, fy = self.spot
+        return QPoint(area.x() + round((area.width() - self.width()) * fx),
+                      area.y() + round((area.height() - self.height()) * fy))
+
+    # --- déplacement
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag = event.globalPosition().toPoint() - self.pos()
+            self._drag_from = self.pos()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag is not None:
+            self.move(event.globalPosition().toPoint() - self._drag)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if self._drag is None:
+            return
+        self.move(event.globalPosition().toPoint() - self._drag)  # les derniers mouvements ont pu être regroupés
+        self._drag = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        if self.pos() != self._drag_from:
+            self._settle()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.spot = None
+            self.spot_file.unlink(missing_ok=True)
+            screen = QGuiApplication.screenAt(self.geometry().center()) or QGuiApplication.primaryScreen()
+            self.move(self.home(screen.availableGeometry()))
+
+    def _settle(self) -> None:
+        """Posée : entièrement sur l'écran où elle est, et sa place est retenue pour les prochaines dictées."""
+        screen = QGuiApplication.screenAt(self.geometry().center()) or QGuiApplication.primaryScreen()
+        area = screen.availableGeometry()
+        free_x, free_y = max(1, area.width() - self.width()), max(1, area.height() - self.height())
+        fx = min(1.0, max(0.0, (self.x() - area.x()) / free_x))
+        fy = min(1.0, max(0.0, (self.y() - area.y()) / free_y))
+        self.spot = (round(fx, 4), round(fy, 4))
+        self.move(self.home(area))
+        try:
+            self.spot_file.parent.mkdir(parents=True, exist_ok=True)
+            self.spot_file.write_text(json.dumps({"x": self.spot[0], "y": self.spot[1]}), encoding="utf-8")
+        except OSError:
+            log.warning("Place de la barre de dictée non enregistrée", exc_info=True)
+
+    def _read_spot(self) -> tuple[float, float] | None:
+        try:
+            data = json.loads(self.spot_file.read_text(encoding="utf-8"))
+            return min(1.0, max(0.0, float(data["x"]))), min(1.0, max(0.0, float(data["y"])))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
 
     def paintEvent(self, _event) -> None:
         p = QPainter(self)

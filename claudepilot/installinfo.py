@@ -48,6 +48,14 @@ def icon_path(install_dir: Path) -> Path:
     return install_dir / "claude-pilot.ico"
 
 
+def refresh_icons() -> None:
+    """L'icône a changé (mise à jour) : l'Explorateur redessine raccourcis et épingles au lieu de garder l'ancienne."""
+    try:
+        ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)  # SHCNE_ASSOCCHANGED
+    except (AttributeError, OSError):
+        pass
+
+
 def read_info(install_dir: Path) -> dict:
     try:
         return json.loads((install_dir / INFO_NAME).read_text(encoding="utf-8"))

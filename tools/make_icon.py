@@ -1,7 +1,8 @@
-"""Icône de Claude Pilot : trois propositions dessinées en grand puis réduites, pour rester nettes à toutes les tailles.
+"""Icône de Claude Pilot : propositions dessinées en grand puis réduites, pour rester nettes à toutes les tailles.
 
-Usage : .venv\\Scripts\\python.exe tools\\make_icon.py [A|B|C] [--apercu fichier.png]
-  A · Viseur : cadre de capture d'écran + onde de voix
+Usage : .venv\\Scripts\\python.exe tools\\make_icon.py [A|B|C|D] [--apercu fichier.png]
+  D · Onde : l'onde de voix seule (icône actuelle, depuis la 1.0.10)
+  A · Viseur : cadre de capture d'écran + onde de voix (jusqu'à la 1.0.9)
   B · Bulle : bulle de parole + curseur qui montre
   C · Avion : avion en papier (piloter, envoyer) + ondes
 """
@@ -99,7 +100,17 @@ def variant_c(small: bool) -> Image.Image:
     return img
 
 
-VARIANTS = {"A": ("Viseur", variant_a), "B": ("Bulle", variant_b), "C": ("Avion", variant_c)}
+def variant_d(small: bool) -> Image.Image:
+    img = background((67, 56, 202), (147, 51, 234))
+    draw = ImageDraw.Draw(img)
+    if small:  # même onde, barres plus épaisses pour rester lisibles en 16-32 px
+        bars(draw, 512, 512, [260, 470, 640, 470, 260], 104, 56, WHITE)
+    else:
+        bars(draw, 512, 512, [230, 400, 560, 400, 230], 86, 52, WHITE)
+    return img
+
+
+VARIANTS = {"D": ("Onde", variant_d), "A": ("Viseur", variant_a), "B": ("Bulle", variant_b), "C": ("Avion", variant_c)}
 
 
 def sized(variant: str) -> dict[int, Image.Image]:
